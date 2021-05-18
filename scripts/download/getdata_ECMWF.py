@@ -3,7 +3,7 @@ from ecmwfapi import ECMWFDataServer
 import os,sys
 import pandas as pd
 from datetime import datetime
-
+from S2S.local_configuration import config
 server = ECMWFDataServer()
 forcastcycle = 'CY47R2'
 for product in (
