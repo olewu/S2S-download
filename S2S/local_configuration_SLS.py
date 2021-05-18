@@ -12,4 +12,5 @@ config = {
     "S2SF": '/nird/projects/NS9853K/DATA/S2S/Benjamin/forecast/ECMWF/sfc/sst/',
     "S2SH":'/nird/projects/NS9853K/DATA/S2S/Benjamin/hindcast/ECMWF/sfc/sst/',
     'ERA5':'/nird/projects/NS9853K/DATA/SFE/ERA_daily_nc/grid_15'
+    'local_S2S':'/Users/siljesorland/Python/test_download/data'
 }
