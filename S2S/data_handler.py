@@ -9,6 +9,7 @@ import json
 from S2S.local_configuration import config
 import S2S.handle_datetime as dt
 import scripts.Henrik.organize_barentzwatch as organize_barentzwatch
+from . import xarray_helpers as xh
 
 class Archive:
     """
@@ -38,7 +39,10 @@ class Archive:
         date = kwargs['date']
 
         var = {
-                'sst':'sea_surface_temperature'
+                'sst':'sea_surface_temperature',
+                'u10':'10m_u_component_of_wind',
+                'v10':'10m_v_component_of_wind',
+                't2m':'2m_temperature'
             }[var]
         return '_'.join([var,date.strftime('%Y%m%d')])+'.nc'
 
@@ -50,25 +54,49 @@ class Archive:
         run   = kwargs['run']
         ftype = kwargs['ftype']
 
-        if kwargs['high_res']:
+        if var=='sst':
+
+            if kwargs['high_res']:
+                return var+'/'+'_'.join(
+                        [
+                            var,
+                            'CY46R1_CY47R1',
+                            '05x05',
+                            date.strftime('%Y-%m-%d'),
+                            run,
+                            ftype
+                        ]
+                    ) + '.grb'
+            else:
+                return var+'/'+'_'.join(
+                        [
+                            var,
+                            'CY46R1_CY47R1',
+                            date.strftime('%Y-%m-%d'),
+                            run,
+                            ftype
+                        ]
+                    ) + '.grb'
+
+        elif var[1:]=='10':
+
             return var+'/'+'_'.join(
                     [
                         var,
-                        'CY46R1_CY47R1',
-                        '05x05',
+                        'CY46R1',
                         date.strftime('%Y-%m-%d'),
-                        run,
-                        ftype
+                        run
                     ]
                 ) + '.grb'
-        else:
+
+        elif var=='t2m':
+
             return var+'/'+'_'.join(
                     [
                         var,
-                        'CY46R1_CY47R1',
+                        'CY46R1',
                         date.strftime('%Y-%m-%d'),
-                        run,
-                        ftype
+                        run
                     ]
                 ) + '.grb'
 
@@ -193,7 +221,7 @@ class LoadLocal:
             raise KeyError
             exit()
 
-    def execute_loading_sequence(self):
+    def execute_loading_sequence(self,x_landmask=False):
 
         chunk = []
 
@@ -206,7 +234,7 @@ class LoadLocal:
         ftype       = Archive().ftype[self.label]
 
         filename_func = self.filename(key='in')
-        
+
         for time in self.load_frequency():
 
             runs   = ['pf','cf'] if control_run else [None]
@@ -256,6 +284,9 @@ class LoadLocal:
                     if resample:
                         open_data = open_data.resample(time=resample).mean()
 
+                    if x_landmask:
+                        open_data = xh.extrapolate_land_mask(open_data)
+
                     if run=='cf':
                         open_data = open_data.expand_dims('member')\
                                         .assign_coords(member=pd.Index([0]))
@@ -271,7 +302,16 @@ class LoadLocal:
 
         return xr.concat(chunk,dimension)
 
-    def load(self,var,start_time,end_time,domainID,download=False,prnt=True):
+    def load(
+                self,
+                var,
+                start_time,
+                end_time,
+                domainID,
+                download=False,
+                prnt=True,
+                x_landmask=False
+            ):
 
         archive = Archive()
 
@@ -296,12 +336,13 @@ class LoadLocal:
 
             archive.make_dir(self.out_path)
 
-            data = self.execute_loading_sequence()
+            data = self.execute_loading_sequence(x_landmask=x_landmask)
 
             if self.label=='ERA5':
                 data.transpose('time','lon','lat').to_netcdf(self.out_path
                                                             +self.out_filename)
             elif self.label=='S2SH':
+
                 data.transpose(
                             'member','step','time',
                             'lon','lat'
@@ -381,7 +422,10 @@ class BarentsWatch:
 
         self.path['DATA'] = config['BW']
 
-    def load(self,location,data_label='DATA'):
+    def load(self,location,no=400,data_label='DATA'):
+
+        if location=='all':
+            location = self.all_locs(number_of_observations=no)
 
         archive = Archive()
 
@@ -395,8 +439,7 @@ class BarentsWatch:
         if isinstance(location[0],str):
             for loc in location:
                 location_2.append(archive.get_domain(loc)['localityNo'])
-
-        location = location_2
+            location = location_2
 
         if not os.path.exists(self.path['DATA']+\
                                 archive.BW_in_filename(location=location[0])):
@@ -409,6 +452,27 @@ class BarentsWatch:
 
         return xr.concat(chunk,'location')
 
+    @staticmethod
+    def all_locs(number_of_observations=400):
+        with open(config['BW']+'temp_BW.json', 'r') as file:
+            data = json.load(file)
+            out  = []
+            i    = 0
+            for loc,dat in data.items():
+                values = np.array(dat['value'],dtype='float32')
+                if np.count_nonzero(~np.isnan(values))>number_of_observations:
+                    i += 1
+                    print(dat['name'])
+                    out.append(int(dat['localityNo']))
+
+            print(
+                    '\n...',
+                    i,
+                    'locations, with',
+                    number_of_observations,
+                    'observations or more, included\n'
+                )
+        return out
 
     @staticmethod
     def load_barentswatch(path,location):
@@ -418,6 +482,25 @@ class BarentsWatch:
         open_data = xr.open_dataset(path+filename)
 
         return open_data
+
+class IMR:
+
+    def __init__(self):
+
+        self.path = config['IMR']
+
+    def load(self,location):
+
+        chunk = []
+        for loc in location:
+
+            filename = loc+'_organized.nc'
+
+            data = xr.open_dataset(self.path+filename)
+            data = data.sortby('time').resample(time='D',skipna=True).mean()
+            chunk.append(data)
+
+        return xr.concat(chunk,'location',join='outer')
 
 class SST:
     """
