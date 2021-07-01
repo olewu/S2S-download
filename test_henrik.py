@@ -3,8 +3,19 @@ import pandas as pd
 from S2S.data_handler import ERA5, BarentsWatch
 from S2S.process import Hindcast, Observations, Grid2Point
 
+<<<<<<< Updated upstream
 domainID = 'norwegian_coast'
 var      = 'sst'
+=======
+import scripts.Henrik.create_domain_file
+# import scripts.Henrik.get_eide
+import scripts.Henrik.vpf_rawEC
+#import scripts.Henrik.vpf_ppEC
+# import scripts.Henrik.vpf_combo_ERA
+# import scripts.Henrik.verify_point_forecast_clean
+# import scripts.Henrik.map
+# import scripts.Henrik.verify_point_forecast_onbw
+>>>>>>> Stashed changes
 
 t_start  = (2020,1,23)
 t_end    = (2021,1,4)

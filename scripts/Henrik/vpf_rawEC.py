@@ -23,10 +23,10 @@ clim_t_start  = (2000,1,1)
 clim_t_end    = (2021,1,4)
 
 process_hindcast     = True
-process_observations = False
+process_observations = True
 verify = True
 
-high_res = False
+high_res = True
 
 observations = BarentsWatch().load('all',no=400).sortby('time')
 
